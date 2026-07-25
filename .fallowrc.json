@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/getfallow/fallow/main/schema/fallowrc.json",
+  "entry": [
+    "extension/src/app.config.ts",
+    "extension/src/entrypoints/**",
+    "backend/convex/http.ts",
+    "packages/shared/src/index.ts"
+  ],
+  "health": {
+    "maxCognitive": 30,
+    "maxCrap": 10000
+  },
+  "rules": {
+    "unused-enum-members": "warn"
+  }
+}

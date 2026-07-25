@@ -1,0 +1,29 @@
+{
+  "name": "minimum-paypal-web-extension-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "convex dev",
+    "codegen": "convex codegen",
+    "lint": "oxlint --type-aware --fix && eslint --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@minimum-paypal/shared": "workspace:*",
+    "convex": "^1.42.3",
+    "jose": "^6.1.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^26.1.0",
+    "eslint": "^10.6.0",
+    "eslint-plugin-perfectionist": "^5.9.1",
+    "globals": "^17.7.0",
+    "oxlint": "1.72.0",
+    "oxlint-tsgolint": "0.24.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.62.1"
+  },
+  "packageManager": "pnpm@11.1.2"
+}

@@ -1,0 +1,23 @@
+{
+  "name": "minimum-paypal-web-extension-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "audit": "pnpm audit --audit-level=high",
+    "build": "pnpm -C extension build && pnpm -C extension build:firefox",
+    "check": "pnpm lint && pnpm stylelint && pnpm svelte:check && pnpm typecheck",
+    "dev": "pnpm -C extension dev",
+    "dev:backend": "pnpm -C backend dev",
+    "dev:firefox": "pnpm -C extension dev:firefox",
+    "fallow": "fallow audit --base HEAD",
+    "lint": "pnpm -C extension lint && pnpm -C backend lint && pnpm -C packages/shared lint",
+    "stylelint": "pnpm -C extension stylelint",
+    "svelte:check": "pnpm -C extension svelte:check",
+    "test": "pnpm -C extension test",
+    "typecheck": "pnpm -C packages/shared typecheck && pnpm -C backend typecheck"
+  },
+  "devDependencies": {
+    "fallow": "2.103.0"
+  },
+  "packageManager": "pnpm@11.1.2"
+}

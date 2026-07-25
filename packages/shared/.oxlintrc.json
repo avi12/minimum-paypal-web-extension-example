@@ -1,0 +1,3 @@
+{
+  "extends": ["../../extension/.oxlintrc.json"]
+}

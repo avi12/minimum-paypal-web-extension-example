@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.idea/
+.output/
+.wxt/
+node_modules/
+dist/
+build/
+continue-*.md
+*.log
