@@ -49,6 +49,11 @@
     {/if}
   {:else if state.purchase && !isCancelled}
     <output>Order {state.purchase.status.toLowerCase()}</output>
+    <!-- Starting again hands back the same pending order, so this is the way back to
+         an approval page that was closed or never opened - not a second charge. -->
+    <button class="primary" disabled={isBusy} onclick={onStartPurchase}>
+      Open PayPal again
+    </button>
     <button class="secondary" disabled={isBusy} onclick={onRefresh}>
       Refresh status
     </button>

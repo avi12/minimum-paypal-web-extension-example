@@ -13,7 +13,7 @@ import {
   type StoredPurchase,
   storedPurchaseSchema
 } from "@/lib/contracts";
-import { toPaymentErrorKind } from "@/lib/payment-error";
+import { PaymentErrorKind, PaymentFailure, toPaymentErrorKind } from "@/lib/payment-error";
 import { getGoogleAccounts } from "./accounts";
 import { createAuthenticatedConvexClient } from "./convex-client";
 
@@ -137,5 +137,24 @@ async function openCheckout() {
     paypalOrderId: checkout.paypalOrderId,
     status: PaymentStatus.Created
   });
-  await browser.tabs.create({ url: checkout.approvalUrl });
+  await openApprovalTab(checkout.approvalUrl);
+}
+
+/**
+ * The order already exists by the time the tab opens, so a browser that refuses to
+ * open one - no window to attach to, a policy blocking the navigation - leaves a real
+ * pending checkout with nothing on screen. Saying so is the difference between that
+ * and a button that visibly does nothing; the member gets back to the same order by
+ * starting again, which reuses the pending attempt rather than creating a second one.
+ */
+async function openApprovalTab(approvalUrl: string) {
+  try {
+    await browser.tabs.create({ url: approvalUrl });
+  } catch (error) {
+    console.error("Could not open the PayPal approval tab", error);
+    throw new PaymentFailure(
+      PaymentErrorKind.unavailable,
+      "Could not open the PayPal approval tab"
+    );
+  }
 }
