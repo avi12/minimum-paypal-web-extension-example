@@ -3,22 +3,27 @@ import { type Auth, signOut } from "@firebase/auth/web-extension";
 import { type GoogleAccount, googleAccountsSchema } from "@/lib/contracts";
 import { getGoogleAccountAuth } from "@/lib/firebase";
 import { PaymentErrorKind, PaymentFailure } from "@/lib/payment-error";
-
-const ACCOUNTS_STORAGE_KEY = "local:googleAccounts";
-const ACTIVE_ACCOUNT_STORAGE_KEY = "local:activeGoogleSubject";
+import {
+  ACCOUNTS_STORAGE_KEY,
+  ACTIVE_ACCOUNT_STORAGE_KEY,
+  getStorageItem,
+  purchaseStorageKey,
+  removeStorageItem,
+  setStorageItem
+} from "@/lib/storage";
 
 export async function getGoogleAccounts() {
-  const stored = await storage.getItem<GoogleAccount[]>(ACCOUNTS_STORAGE_KEY);
+  const stored = await getStorageItem<GoogleAccount[]>(ACCOUNTS_STORAGE_KEY);
   const parsed = googleAccountsSchema.safeParse(stored);
   return parsed.success ? parsed.data : [];
 }
 
 async function saveGoogleAccounts(accounts: GoogleAccount[]) {
-  await storage.setItem(ACCOUNTS_STORAGE_KEY, accounts);
+  await setStorageItem(ACCOUNTS_STORAGE_KEY, accounts);
 }
 
 export async function getActiveGoogleSubject() {
-  const activeSubject = await storage.getItem<string>(ACTIVE_ACCOUNT_STORAGE_KEY);
+  const activeSubject = await getStorageItem<string>(ACTIVE_ACCOUNT_STORAGE_KEY);
   const accounts = await getGoogleAccounts();
   return accounts.some(account => account.googleSubject === activeSubject)
     ? activeSubject
@@ -42,7 +47,7 @@ export async function getActiveAccountContext(): Promise<{
     const auth = getGoogleAccountAuth(account.googleSubject);
     await auth.authStateReady();
     if (auth.currentUser) {
-      await storage.setItem(ACTIVE_ACCOUNT_STORAGE_KEY, account.googleSubject);
+      await setStorageItem(ACTIVE_ACCOUNT_STORAGE_KEY, account.googleSubject);
       return { auth, googleSubject: account.googleSubject };
     }
   }
@@ -56,7 +61,7 @@ export async function saveGoogleAccount(account: GoogleAccount) {
   );
   nextAccounts.push(account);
   await saveGoogleAccounts(nextAccounts);
-  await storage.setItem(ACTIVE_ACCOUNT_STORAGE_KEY, account.googleSubject);
+  await setStorageItem(ACTIVE_ACCOUNT_STORAGE_KEY, account.googleSubject);
 }
 
 export async function selectGoogleAccount(googleSubject: string) {
@@ -73,7 +78,7 @@ export async function selectGoogleAccount(googleSubject: string) {
       "Google account session has expired; add it again"
     );
   }
-  await storage.setItem(ACTIVE_ACCOUNT_STORAGE_KEY, googleSubject);
+  await setStorageItem(ACTIVE_ACCOUNT_STORAGE_KEY, googleSubject);
 }
 
 export async function removeGoogleAccount(googleSubject: string) {
@@ -88,14 +93,14 @@ export async function removeGoogleAccount(googleSubject: string) {
     item => item.googleSubject !== googleSubject
   );
   await saveGoogleAccounts(remainingAccounts);
-  await storage.removeItem(`local:purchase:${googleSubject}`);
+  await removeStorageItem(purchaseStorageKey(googleSubject));
 
   if (await getActiveGoogleSubject() === null) {
     const nextSubject = remainingAccounts[0]?.googleSubject;
     if (nextSubject) {
-      await storage.setItem(ACTIVE_ACCOUNT_STORAGE_KEY, nextSubject);
+      await setStorageItem(ACTIVE_ACCOUNT_STORAGE_KEY, nextSubject);
     } else {
-      await storage.removeItem(ACTIVE_ACCOUNT_STORAGE_KEY);
+      await removeStorageItem(ACTIVE_ACCOUNT_STORAGE_KEY);
     }
   }
 }

@@ -14,6 +14,7 @@ import {
   storedPurchaseSchema
 } from "@/lib/contracts";
 import { PaymentErrorKind, PaymentFailure, toPaymentErrorKind } from "@/lib/payment-error";
+import { getStorageItem, purchaseStorageKey, setStorageItem } from "@/lib/storage";
 import { getGoogleAccounts } from "./accounts";
 import { createAuthenticatedConvexClient } from "./convex-client";
 
@@ -33,11 +34,8 @@ const getEntitlementStatus = makeFunctionReference<
   unknown
 >(GET_ENTITLEMENT_STATUS_FUNCTION);
 
-const purchaseStorageKey = (googleSubject: string) =>
-  `local:purchase:${googleSubject}` as const;
-
 async function getStoredPurchase(googleSubject: string) {
-  const purchase = await storage.getItem<StoredPurchase>(
+  const purchase = await getStorageItem<StoredPurchase>(
     purchaseStorageKey(googleSubject)
   );
   const parsed = storedPurchaseSchema.safeParse(purchase);
@@ -45,7 +43,7 @@ async function getStoredPurchase(googleSubject: string) {
 }
 
 const savePurchase = (googleSubject: string, purchase: StoredPurchase) =>
-  storage.setItem(purchaseStorageKey(googleSubject), purchase);
+  setStorageItem(purchaseStorageKey(googleSubject), purchase);
 
 export async function getExtensionState() {
   const accounts = await getGoogleAccounts();
