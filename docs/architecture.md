@@ -1,7 +1,7 @@
 # Architecture
 
 Status: working example
-Last updated: 2026-07-25
+Last updated: 2026-08-25
 
 ## Mental Model And Scope
 
@@ -101,7 +101,22 @@ sequenceDiagram
 
 The PayPal client secret and access token never enter the extension. A return redirect alone grants nothing: Convex captures server-side and validates `9.99 USD` before writing the entitlement.
 
-PayPal response schemas constrain documented resource IDs, HATEOAS relations, approval hosts, capture statuses, three-letter currencies, and decimal amounts. Webhooks are body-size bounded, require all signature headers, reject stale transmissions, and send the original parsed event to PayPal's verification API. A completed event for an unknown order returns `503` without consuming the event so PayPal can retry it.
+PayPal response schemas constrain documented resource IDs, HATEOAS relations, approval hosts, capture statuses, three-letter currencies, and decimal amounts. Webhooks are body-size bounded, require all signature headers, reject stale transmissions, and send the original parsed event to PayPal's verification API. A completed event for an unknown order returns `503` without consuming the event so PayPal can retry it. `paypal-transmission-time` is read with `Temporal.Instant.from`, which either accepts RFC 3339 or throws - `Date.parse` would fall back to implementation-defined heuristics on a header the replay window depends on.
+
+### Checkout Refusals
+
+Convex redacts a plain `Error`'s message in production, so a refusal only reaches the extension if it is stamped. `createCheckout` throws `ConvexError` carrying a `PaypalErrorCode` from `packages/shared`, and the extension maps that to the smaller set of things a refusal means to the member. Anything unstamped stays a plain `Error` on purpose and reads as `unavailable`.
+
+| Backend code | UI kind | What the member is offered |
+| --- | --- | --- |
+| `already_entitled` | `alreadyOwned` | Refresh status |
+| `country_not_supported` | `region` | Nothing - retrying cannot help |
+| `unauthorized` | `signedOut` | Sign in again |
+| `server_misconfigured` | `unavailable` | Try again |
+| `paypal_error` | `unavailable` | Try again |
+| *(unstamped, or a browser that will not open the tab)* | `unavailable` | Try again |
+
+No kind blames the member's payment method: the card is never charged before PayPal's own approval page, so a decline cannot happen on this path. A failed id-token mint reads as `network` rather than as a dead session, since the session is still good.
 
 ## Trust Boundaries
 
@@ -113,7 +128,7 @@ PayPal response schemas constrain documented resource IDs, HATEOAS relations, ap
 | Convex functions | Checkout result | Firebase identity | `ctx.auth.getUserIdentity()` |
 | Provider callbacks | Opaque IDs | Provider credentials | State, PKCE, nonce, signature verification |
 
-`@minimum-paypal/shared` contains only pure constants, enums, and Zod contracts. It is the single source of truth imported by both extension and backend, while browser APIs and provider clients remain in their owning workspaces.
+`@minimum-paypal/shared` contains only pure constants, enums, and Zod contracts. It is the single source of truth imported by both extension and backend, while browser APIs and provider clients remain in their owning workspaces. The refusal vocabulary lives there for the same reason the price does: the side that stamps a code and the side that reads it cannot drift if there is one definition.
 
 ## Data Model
 
@@ -138,11 +153,11 @@ PayPal response schemas constrain documented resource IDs, HATEOAS relations, ap
 
 1. `App.svelte` sends `MessageType.StartLifetimePurchase`.
 2. `background/convex-client.ts` creates a fresh client with the current Firebase ID token.
-3. `background/purchase.ts` calls the Convex action and stores the checkout identity.
+3. `background/purchase.ts` calls the Convex action, stores the checkout identity, and answers with a result rather than throwing - an error crossing the messaging boundary arrives stripped of everything but its message.
 4. `paypal.ts` creates the server-priced order and returns only its approval URL.
 5. PayPal returns to `paypal.ts`, which captures and validates the payment.
 6. `schema.ts` stores the completed flow and entitlement.
-7. The CSUI polls without overlapping requests and renders completion.
+7. The CSUI polls without overlapping requests and renders completion, or renders the one screen `lib/payment-error.ts` picked for a refusal.
 
 Both tours share payment vocabulary through `packages/shared/src/payment.ts`; neither side duplicates status strings, product amount, currency, or checkout response shapes.
 
@@ -158,6 +173,10 @@ Both tours share payment vocabulary through `packages/shared/src/payment.ts`; ne
 | Completed webhook precedes its order binding | No event is consumed; `503` requests PayPal redelivery |
 | PayPal verification is unavailable | A `5xx` response preserves provider retry behavior |
 | Checkout tab is closed | The stored flow remains queryable; closing a tab is not cancellation |
+| Checkout tab will not open | The pending order is kept and offered again, rather than left polling with nothing on screen |
+| PayPal refuses to create the order | The refusal is named, and only the ones retrying can fix keep offering the button |
+| Firebase id token will not mint | Read as a network failure; the card keeps the session it already had |
+| `chrome.storage` rejects | The thrown error names the operation and key, with the native message as its cause |
 | CSUI or browser restarts | WXT local storage keeps the checkout ID for a later status refresh |
 | User switches accounts during checkout | Account-scoped storage hides the other account's checkout |
 | One account is removed | Only that named Firebase session and purchase record are cleared |

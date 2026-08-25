@@ -505,10 +505,13 @@ To stop new purchases, disable or rotate the Live PayPal app credentials or roll
 | `extension/src/entrypoints/background/convex-client.ts` | Fresh Firebase-authenticated Convex clients |
 | `extension/src/entrypoints/background/purchase.ts` | Purchase storage, state, and checkout calls |
 | `extension/src/entrypoints/paypal.content/` | Shadow-root Svelte purchase UI |
+| `extension/src/lib/payment-error.ts` | Turns a refusal into the one thing it means to the member |
+| `extension/src/lib/storage.ts` | Storage keys and reads/writes that name what failed |
 | `backend/convex/oauth.ts` | OAuth broker, PKCE, JWT verification, handoff |
 | `backend/convex/paypal.ts` | Orders, capture, webhook, and entitlement orchestration |
 | `backend/convex/paypalModel.ts` | Transactional checkout-attempt creation |
-| `packages/shared/src/payment.ts` | Shared price, status, and response contracts |
+| `backend/convex/lib/checkoutError.ts` | Stamps a refusal with the shared code |
+| `packages/shared/src/payment.ts` | Shared price, status, response, and refusal contracts |
 
 ## Deliberate Limits
 
