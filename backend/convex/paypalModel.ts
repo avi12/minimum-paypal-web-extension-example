@@ -33,7 +33,7 @@ export const getOrCreateCheckoutAttempt = internalMutation({
       return existing;
     }
 
-    const now = Date.now();
+    const now = Temporal.Now.instant().epochMilliseconds;
     const checkoutId = await ctx.db.insert("paypalCheckoutFlows", {
       userSubject,
       status: PaymentStatus.Created,
@@ -58,7 +58,7 @@ export const completeCheckoutAttempt = internalMutation({
     await ctx.db.patch(checkoutId, {
       approvalUrl,
       paypalOrderId,
-      updatedAt: Date.now()
+      updatedAt: Temporal.Now.instant().epochMilliseconds
     });
   }
 });

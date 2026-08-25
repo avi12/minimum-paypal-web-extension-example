@@ -261,7 +261,7 @@ async function completeCheckout(
     return false;
   }
 
-  const now = Date.now();
+  const now = Temporal.Now.instant().epochMilliseconds;
   await ctx.db.patch(flow._id, {
     status: PaymentStatus.Completed,
     paypalCaptureId,
@@ -316,7 +316,7 @@ export const cancelCheckout = internalMutation({
     if (flow && flow.status !== PaymentStatus.Completed) {
       await ctx.db.patch(flow._id, {
         status: PaymentStatus.Cancelled,
-        updatedAt: Date.now()
+        updatedAt: Temporal.Now.instant().epochMilliseconds
       });
     }
   }
@@ -353,7 +353,7 @@ export const processWebhook = internalMutation({
         paypalEventId: args.paypalEventId,
         eventType: args.eventType,
         isVerified: true,
-        processedAt: Date.now()
+        processedAt: Temporal.Now.instant().epochMilliseconds
       });
       return { isDuplicate: false, shouldRetry: false };
     }
@@ -369,7 +369,7 @@ export const processWebhook = internalMutation({
       paypalEventId: args.paypalEventId,
       eventType: args.eventType,
       isVerified: true,
-      processedAt: Date.now()
+      processedAt: Temporal.Now.instant().epochMilliseconds
     });
     return { isDuplicate: false, shouldRetry: false };
   }
@@ -607,6 +607,20 @@ async function readWebhookEvent(request: Request) {
     };
 }
 
+/**
+ * PayPal sends RFC 3339 in paypal-transmission-time, and that timestamp is what gates
+ * the replay window - so it has to be read strictly. Date.parse falls back to
+ * implementation-defined heuristics on anything it does not recognise, which is how a
+ * malformed header can land inside the window instead of being rejected outright.
+ */
+function parseIsoTimestampMs(iso: string) {
+  try {
+    return Temporal.Instant.from(iso).epochMilliseconds;
+  } catch {
+    return Number.NaN;
+  }
+}
+
 function readWebhookHeaders(request: Request) {
   const headers = {
     authAlgorithm: request.headers.get("paypal-auth-algo"),
@@ -622,10 +636,10 @@ function readWebhookHeaders(request: Request) {
     };
   }
 
-  const transmissionTimestamp = Date.parse(headers.transmissionTime!);
+  const transmissionTimestamp = parseIsoTimestampMs(headers.transmissionTime!);
   if (
     !Number.isFinite(transmissionTimestamp) ||
-    Math.abs(Date.now() - transmissionTimestamp) > MAX_WEBHOOK_AGE_MILLISECONDS
+    Math.abs(Temporal.Now.instant().epochMilliseconds - transmissionTimestamp) > MAX_WEBHOOK_AGE_MILLISECONDS
   ) {
     return {
       ok: false as const,

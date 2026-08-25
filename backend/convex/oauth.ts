@@ -55,7 +55,7 @@ export const createTransaction = internalMutation({
   async handler(ctx, args) {
     await ctx.db.insert("oauthTransactions", {
       ...args,
-      createdAt: Date.now()
+      createdAt: Temporal.Now.instant().epochMilliseconds
     });
   }
 });
@@ -83,7 +83,7 @@ export const completeTransaction = internalMutation({
   },
   async handler(ctx, args) {
     const transaction = await ctx.db.get(args.transactionId);
-    const now = Date.now();
+    const now = Temporal.Now.instant().epochMilliseconds;
     if (
       !transaction ||
       transaction.consumedAt ||
@@ -113,7 +113,7 @@ export const consumeCredentialExchange = internalMutation({
       .query("googleCredentialExchanges")
       .withIndex("byCodeHash", (query) => query.eq("codeHash", codeHash))
       .unique();
-    const now = Date.now();
+    const now = Temporal.Now.instant().epochMilliseconds;
     if (
       !exchange ||
       exchange.consumedAt ||
@@ -153,7 +153,7 @@ export const googleStart = httpAction(async (ctx, request) => {
       codeVerifier,
       nonce,
       redirectUri,
-      expiresAt: Date.now() + OAUTH_TRANSACTION_TTL_MS
+      expiresAt: Temporal.Now.instant().epochMilliseconds + OAUTH_TRANSACTION_TTL_MS
     });
 
     const googleUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -212,7 +212,7 @@ async function verifyGoogleToken(idToken: string, nonce: string) {
   const parsed = googleIdTokenClaimsSchema.safeParse(payload);
   if (
     !parsed.success ||
-    parsed.data.exp * 1000 <= Date.now() ||
+    parsed.data.exp * 1000 <= Temporal.Now.instant().epochMilliseconds ||
     parsed.data.nonce !== nonce
   ) {
     throw new Error("Google ID token validation failed");
@@ -237,7 +237,7 @@ export const googleCallback = httpAction(async (ctx, request) => {
     if (
       !transaction ||
       transaction.consumedAt ||
-      transaction.expiresAt <= Date.now()
+      transaction.expiresAt <= Temporal.Now.instant().epochMilliseconds
     ) {
       throw new Error("OAuth transaction is invalid or expired");
     }
@@ -257,7 +257,7 @@ export const googleCallback = httpAction(async (ctx, request) => {
       googleSubject: claims.sub,
       email: claims.email,
       displayName: claims.name,
-      expiresAt: Date.now() + CREDENTIAL_EXCHANGE_TTL_MS
+      expiresAt: Temporal.Now.instant().epochMilliseconds + CREDENTIAL_EXCHANGE_TTL_MS
     });
     const redirectUrl = new URL(transaction.redirectUri);
     redirectUrl.searchParams.set("code", handoffCode);

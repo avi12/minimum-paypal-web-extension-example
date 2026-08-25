@@ -55,6 +55,8 @@ pnpm install
 
 Provider callbacks require public HTTPS endpoints. A local-only Convex deployment cannot receive Google or PayPal callbacks.
 
+The backend reads `Temporal` as a runtime global rather than bundling a polyfill, so it needs a Convex deployment whose runtime provides it. TypeScript supplies the types through the `ESNext` lib.
+
 ## Guided Sandbox Setup
 
 Complete Steps 1–6 in order. Use a dedicated development Firebase project, Convex deployment, and PayPal sandbox app. Do not copy credentials from another application or use PayPal Live credentials during this guide.
