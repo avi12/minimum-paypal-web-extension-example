@@ -63,5 +63,6 @@ export interface ExtensionState {
  */
 export interface PurchaseResult {
   errorKind: PaymentErrorKind | null;
-  state: ExtensionState;
+  /** null when re-reading state failed too, which leaves the card showing what it has. */
+  state: ExtensionState | null;
 }

@@ -57,7 +57,7 @@
     runTask(async () => {
       const result = await sendMessage(MessageType.StartLifetimePurchase);
       paymentErrorKind = result.errorKind;
-      return result.state;
+      return result.state ?? extensionState;
     });
 
   onMount(() => {

@@ -52,10 +52,14 @@ export async function getExtensionState() {
   try {
     return await getSignedInState(accounts);
   } catch (error) {
-    // Repainting the card is what tells the member they are signed out, so a session
-    // that will not open - or an entitlement query that cannot reach Convex - has to
-    // answer with a state rather than take the whole card down with it.
-    console.warn("Could not read the signed-in state", error);
+    // Only an account we genuinely cannot open reads as signed out. A query that could
+    // not reach Convex is rethrown instead: answering it with the signed-out shape put
+    // "Continue with Google" in front of a member who was merely offline.
+    if (toPaymentErrorKind(error) !== PaymentErrorKind.signedOut) {
+      throw error;
+    }
+
+    console.warn("No account session to read state from", error);
     return {
       accounts,
       activeGoogleSubject: null,
@@ -122,7 +126,7 @@ export async function startLifetimePurchase(): Promise<PurchaseResult> {
     console.error("Could not start the PayPal checkout", error);
     return {
       errorKind: toPaymentErrorKind(error),
-      state: await getExtensionState()
+      state: await getExtensionState().catch(() => null)
     };
   }
 }
