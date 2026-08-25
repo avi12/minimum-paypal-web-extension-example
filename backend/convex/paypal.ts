@@ -1,5 +1,6 @@
 import {
   PaymentStatus,
+  PaypalErrorCode,
   PRODUCT_AMOUNT,
   PRODUCT_CURRENCY,
   PRODUCT_ID,
@@ -18,14 +19,41 @@ import {
   internalQuery,
   query
 } from "./_generated/server";
-import { requireEnv } from "./lib/config";
+import { checkoutError } from "./lib/checkoutError";
+import { ConfigurationError, requireEnv } from "./lib/config";
 import { jsonResponse } from "./lib/security";
 
 const PAYPAL_RESOURCE_ID_PATTERN = /^[A-Z0-9]{1,36}$/;
 const PAYPAL_AMOUNT_PATTERN = /^\d{1,32}(?:\.\d{1,2})?$/;
 const MAX_WEBHOOK_BODY_BYTES = 1_048_576;
 const MAX_WEBHOOK_AGE_MILLISECONDS = 5 * 60 * 1000;
-class PayPalProviderError extends Error {}
+const PAYPAL_UNPROCESSABLE_ENTITY_STATUS = 422;
+
+/**
+ * PayPal itself turned the call down. `code` is the part the extension reads; the
+ * message stays internal, and the HTTP callbacks keep mapping the class to a 502 so
+ * a provider outage is never reported as our own failure.
+ */
+class PayPalProviderError extends Error {
+  constructor(message: string, readonly code = PaypalErrorCode.paypalError) {
+    super(message);
+  }
+}
+
+/**
+ * The one place a backend failure turns into something the extension can act on.
+ * Anything unrecognised is rethrown as-is: Convex redacts a plain Error's message in
+ * production, which is the right default for a failure we did not anticipate.
+ */
+function asCheckoutError(error: unknown) {
+  if (error instanceof PayPalProviderError) {
+    return checkoutError(error.code);
+  }
+  if (error instanceof ConfigurationError) {
+    return checkoutError(PaypalErrorCode.serverMisconfigured);
+  }
+  return error;
+}
 const paypalAccessTokenSchema = z.object({
   access_token: z.string().min(1),
   expires_in: z.number().int().positive(),
@@ -181,7 +209,15 @@ async function paypalRequest({
   const payload = paypalResponseSchema.parse(await response.json());
   if (!response.ok) {
     console.error("PayPal request failed", { path, status: response.status });
-    throw new PayPalProviderError("PayPal request failed");
+    // A 422 on order creation is how PayPal turns down the payer's country - the one
+    // refusal on this path that is about the member rather than about us or PayPal,
+    // and the only one worth a different screen than "try again".
+    throw new PayPalProviderError(
+      "PayPal request failed",
+      response.status === PAYPAL_UNPROCESSABLE_ENTITY_STATUS
+        ? PaypalErrorCode.countryNotSupported
+        : PaypalErrorCode.paypalError
+    );
   }
   return payload;
 }
@@ -191,7 +227,7 @@ async function authenticatedSubject(ctx: {
 }) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
-    throw new Error("Authentication required");
+    throw checkoutError(PaypalErrorCode.unauthorized);
   }
   return identity.subject;
 }
@@ -343,6 +379,17 @@ async function createPaypalOrder(
   attempt: Doc<"paypalCheckoutFlows">,
   userSubject: string
 ) {
+  try {
+    return await requestPaypalOrder(attempt, userSubject);
+  } catch (error) {
+    throw asCheckoutError(error);
+  }
+}
+
+async function requestPaypalOrder(
+  attempt: Doc<"paypalCheckoutFlows">,
+  userSubject: string
+) {
   const checkoutUrls = paypalCheckoutUrls();
   const order = paypalOrderSchema.parse(await paypalRequest({
     path: "/v2/checkout/orders",
@@ -371,7 +418,7 @@ async function createPaypalOrder(
     link => link.rel === "payer-action" || link.rel === "approve"
   )?.href;
   if (!approvalUrl || new URL(approvalUrl).hostname !== paypalApprovalHostname()) {
-    throw new Error(
+    throw new PayPalProviderError(
       "PayPal did not return an approval URL for the configured environment"
     );
   }

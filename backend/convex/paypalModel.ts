@@ -1,11 +1,13 @@
 import {
   PaymentStatus,
+  PaypalErrorCode,
   PRODUCT_AMOUNT,
   PRODUCT_CURRENCY,
   PRODUCT_ID
 } from "@minimum-paypal/shared/payment";
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
+import { checkoutError } from "./lib/checkoutError";
 
 export const getOrCreateCheckoutAttempt = internalMutation({
   args: {
@@ -19,7 +21,7 @@ export const getOrCreateCheckoutAttempt = internalMutation({
       )
       .unique();
     if (entitlement?.isActive) {
-      throw new Error("Lifetime access is already active");
+      throw checkoutError(PaypalErrorCode.alreadyEntitled);
     }
 
     const existing = await ctx.db

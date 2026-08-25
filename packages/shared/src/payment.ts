@@ -29,3 +29,22 @@ export const entitlementStatusSchema = z.object({
 });
 
 export type Checkout = z.infer<typeof checkoutSchema>;
+
+/**
+ * Machine-readable reason the backend refused to open a checkout. It rides in the
+ * `data` of the ConvexError thrown by `paypal:createCheckout`, so the string values
+ * are the wire contract between the two workspaces - keep them byte-identical.
+ * A refusal with no code is a bug on our side, not a statement about the payment.
+ */
+export enum PaypalErrorCode {
+  alreadyEntitled = "already_entitled",
+  countryNotSupported = "country_not_supported",
+  paypalError = "paypal_error",
+  serverMisconfigured = "server_misconfigured",
+  unauthorized = "unauthorized"
+}
+
+export const checkoutErrorSchema = z.object({
+  code: z.enum(PaypalErrorCode)
+});
+export type CheckoutError = z.infer<typeof checkoutErrorSchema>;
