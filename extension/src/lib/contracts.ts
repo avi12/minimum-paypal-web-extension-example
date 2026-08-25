@@ -1,4 +1,5 @@
 import { PaymentStatus } from "@minimum-paypal/shared/payment";
+import type { PaymentErrorKind } from "@/lib/payment-error";
 import { z } from "@/lib/zod";
 
 export {
@@ -53,4 +54,14 @@ export interface ExtensionState {
   isEntitled: boolean;
   purchase: StoredPurchase | null;
   user: ExtensionUser | null;
+}
+
+/**
+ * Starting a purchase answers with state either way: a refused checkout still has to
+ * repaint the card, and throwing across the messaging boundary would strip the kind
+ * off the error on its way to the content script.
+ */
+export interface PurchaseResult {
+  errorKind: PaymentErrorKind | null;
+  state: ExtensionState;
 }

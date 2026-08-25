@@ -1,6 +1,6 @@
 import { defineExtensionMessaging } from "@webext-core/messaging";
 
-import type { ExtensionState, GoogleAccount } from "@/lib/contracts";
+import type { ExtensionState, GoogleAccount, PurchaseResult } from "@/lib/contracts";
 
 export enum MessageType {
   AddGoogleAccount = "addGoogleAccount",
@@ -19,7 +19,7 @@ interface ExtensionMessagingProtocol {
   [MessageType.RemoveGoogleAccount]: (data: { googleSubject: string }) => ExtensionState;
   [MessageType.RefreshPurchase]: () => ExtensionState;
   [MessageType.SelectGoogleAccount]: (data: { googleSubject: string }) => ExtensionState;
-  [MessageType.StartLifetimePurchase]: () => ExtensionState;
+  [MessageType.StartLifetimePurchase]: () => PurchaseResult;
 }
 
 export const { onMessage, sendMessage } =

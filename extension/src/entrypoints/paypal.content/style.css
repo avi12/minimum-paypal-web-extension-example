@@ -197,8 +197,14 @@ aside {
   }
 
   .error {
+    display: grid;
+    gap: 2px;
     background: var(--error-container);
     color: var(--on-error-container);
+
+    strong {
+      font-weight: 700;
+    }
   }
 }
 

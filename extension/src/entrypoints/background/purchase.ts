@@ -7,10 +7,13 @@ import {
   checkoutSchema,
   checkoutStatusSchema,
   entitlementStatusSchema,
+  type GoogleAccount,
   PaymentStatus,
+  type PurchaseResult,
   type StoredPurchase,
   storedPurchaseSchema
 } from "@/lib/contracts";
+import { toPaymentErrorKind } from "@/lib/payment-error";
 import { getGoogleAccounts } from "./accounts";
 import { createAuthenticatedConvexClient } from "./convex-client";
 
@@ -46,10 +49,13 @@ const savePurchase = (googleSubject: string, purchase: StoredPurchase) =>
 
 export async function getExtensionState() {
   const accounts = await getGoogleAccounts();
-  let authenticated;
   try {
-    authenticated = await createAuthenticatedConvexClient();
-  } catch {
+    return await getSignedInState(accounts);
+  } catch (error) {
+    // Repainting the card is what tells the member they are signed out, so a session
+    // that will not open - or an entitlement query that cannot reach Convex - has to
+    // answer with a state rather than take the whole card down with it.
+    console.warn("Could not read the signed-in state", error);
     return {
       accounts,
       activeGoogleSubject: null,
@@ -58,7 +64,10 @@ export async function getExtensionState() {
       user: null
     };
   }
+}
 
+async function getSignedInState(accounts: GoogleAccount[]) {
+  const authenticated = await createAuthenticatedConvexClient();
   const entitlement = entitlementStatusSchema.parse(
     await authenticated.client.query(getEntitlementStatus, {})
   );
@@ -102,7 +111,23 @@ export async function refreshPurchase() {
   return getExtensionState();
 }
 
-export async function startLifetimePurchase() {
+export async function startLifetimePurchase(): Promise<PurchaseResult> {
+  try {
+    await openCheckout();
+    return { errorKind: null, state: await getExtensionState() };
+  } catch (error) {
+    // The backend names why it refused; anything it did not name reads as "we could
+    // not reach checkout", which is the honest answer and says nothing about the
+    // member's payment method.
+    console.error("Could not start the PayPal checkout", error);
+    return {
+      errorKind: toPaymentErrorKind(error),
+      state: await getExtensionState()
+    };
+  }
+}
+
+async function openCheckout() {
   const authenticated = await createAuthenticatedConvexClient();
   const checkout = checkoutSchema.parse(
     await authenticated.client.action(createCheckout, {})
@@ -113,5 +138,4 @@ export async function startLifetimePurchase() {
     status: PaymentStatus.Created
   });
   await browser.tabs.create({ url: checkout.approvalUrl });
-  return getExtensionState();
 }

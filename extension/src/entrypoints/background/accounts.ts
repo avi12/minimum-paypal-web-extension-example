@@ -2,6 +2,7 @@ import { type Auth, signOut } from "@firebase/auth/web-extension";
 
 import { type GoogleAccount, googleAccountsSchema } from "@/lib/contracts";
 import { getGoogleAccountAuth } from "@/lib/firebase";
+import { PaymentErrorKind, PaymentFailure } from "@/lib/payment-error";
 
 const ACCOUNTS_STORAGE_KEY = "local:googleAccounts";
 const ACTIVE_ACCOUNT_STORAGE_KEY = "local:activeGoogleSubject";
@@ -67,7 +68,10 @@ export async function selectGoogleAccount(googleSubject: string) {
   const auth = getGoogleAccountAuth(googleSubject);
   await auth.authStateReady();
   if (!auth.currentUser) {
-    throw new Error("Google account session has expired; add it again");
+    throw new PaymentFailure(
+      PaymentErrorKind.signedOut,
+      "Google account session has expired; add it again"
+    );
   }
   await storage.setItem(ACTIVE_ACCOUNT_STORAGE_KEY, googleSubject);
 }

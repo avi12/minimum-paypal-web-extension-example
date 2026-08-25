@@ -3,6 +3,7 @@
 
   import { type ExtensionState, PaymentStatus } from "@/lib/contracts";
   import { MessageType, sendMessage } from "@/lib/messaging";
+  import { isUserCancelledAuthFlow, type PaymentErrorKind, toPaymentErrorKind } from "@/lib/payment-error";
   import PurchaseCard from "./PurchaseCard.svelte";
 
   const POLL_INTERVAL_MILLISECONDS = 4_000;
@@ -15,7 +16,7 @@
   };
 
   let extensionState = $state<ExtensionState>(EMPTY_STATE);
-  let errorMessage = $state("");
+  let paymentErrorKind = $state<PaymentErrorKind | null>(null);
   let isBusy = $state(true);
   const isPurchaseActive = $derived(
     extensionState.purchase?.status === PaymentStatus.Created
@@ -23,11 +24,16 @@
 
   const runTask = async (task: () => Promise<ExtensionState>) => {
     isBusy = true;
-    errorMessage = "";
+    paymentErrorKind = null;
     try {
       extensionState = await task();
     } catch (error) {
-      errorMessage = error instanceof Error ? error.message : "Something went wrong";
+      // Backing out of a sign-in window is a decision, not a failure - showing an
+      // error screen for it would tell the member something went wrong when nothing did.
+      if (!isUserCancelledAuthFlow(error)) {
+        console.error("Extension task failed", error);
+        paymentErrorKind = toPaymentErrorKind(error);
+      }
     } finally {
       isBusy = false;
     }
@@ -43,8 +49,16 @@
   const removeAccount = (googleSubject: string) =>
     runTask(() =>
       sendMessage(MessageType.RemoveGoogleAccount, { googleSubject }));
+
+  // The purchase answers with a kind instead of throwing, because a refused checkout
+  // still has state worth painting and an error crossing the messaging boundary would
+  // arrive stripped of everything but its message.
   const startPurchase = () =>
-    runTask(() => sendMessage(MessageType.StartLifetimePurchase));
+    runTask(async () => {
+      const result = await sendMessage(MessageType.StartLifetimePurchase);
+      paymentErrorKind = result.errorKind;
+      return result.state;
+    });
 
   onMount(() => {
     void runTask(() => sendMessage(MessageType.GetExtensionState));
@@ -73,7 +87,6 @@
 </script>
 
 <PurchaseCard
-  {errorMessage}
   {extensionState}
   {isBusy}
   onAddAccount={() => void addAccount()}
@@ -81,4 +94,5 @@
   onRemoveAccount={googleSubject => void removeAccount(googleSubject)}
   onSelectAccount={googleSubject => void selectAccount(googleSubject)}
   onStartPurchase={() => void startPurchase()}
+  {paymentErrorKind}
 />
