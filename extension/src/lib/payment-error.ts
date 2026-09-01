@@ -35,6 +35,22 @@ const ERROR_KIND_BY_CODE: Record<PaypalErrorCode, PaymentErrorKind> = {
 // a cancel leaves the button doing visibly nothing.
 const USER_CANCELLED_AUTH_FLOW_PATTERN = /cancel|did not approve|denied access/i;
 
+// Conditions the browser itself creates while tearing the extension down: an update,
+// reload or disable orphaning a content script that is still on the page, the MV3 worker
+// already collected, the browser closing, a message port dropped mid-flight. Every
+// extension API the surviving code touches then throws, and no version of it can recover,
+// so these are lifecycle events rather than refusals - painting the checkout card with one
+// tells the member their payment broke when the only thing that ended was the script
+// asking about it. ("No SW" is how wxt/storage words the same teardown, and it arrives
+// wrapped in the operation and key `lib/storage.ts` names.) The word boundary keeps a
+// genuine failure that merely mentions a service worker reaching the card.
+const BROWSER_TEARDOWN_PATTERNS = [
+  /context invalidated/i,
+  /browser is shutting down/i,
+  /\bno sw\b/i,
+  /message channel closed/i
+];
+
 /**
  * Raised where we can name a failure the backend never saw: a browser that will not
  * open a window, an id token that will not mint offline, a session that has expired.
@@ -45,9 +61,17 @@ export class PaymentFailure extends Error {
   }
 }
 
+function toReason(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function isUserCancelledAuthFlow(error: unknown) {
-  const reason = error instanceof Error ? error.message : String(error);
-  return USER_CANCELLED_AUTH_FLOW_PATTERN.test(reason);
+  return USER_CANCELLED_AUTH_FLOW_PATTERN.test(toReason(error));
+}
+
+export function isBrowserTeardown(error: unknown) {
+  const reason = toReason(error);
+  return BROWSER_TEARDOWN_PATTERNS.some(pattern => pattern.test(reason));
 }
 
 /**

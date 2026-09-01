@@ -3,7 +3,12 @@
 
   import { type ExtensionState, PaymentStatus } from "@/lib/contracts";
   import { MessageType, sendMessage } from "@/lib/messaging";
-  import { isUserCancelledAuthFlow, type PaymentErrorKind, toPaymentErrorKind } from "@/lib/payment-error";
+  import {
+    isBrowserTeardown,
+    isUserCancelledAuthFlow,
+    type PaymentErrorKind,
+    toPaymentErrorKind
+  } from "@/lib/payment-error";
   import PurchaseCard from "./PurchaseCard.svelte";
 
   const POLL_INTERVAL_MILLISECONDS = 4_000;
@@ -28,12 +33,17 @@
     try {
       extensionState = await task();
     } catch (error) {
-      // Backing out of a sign-in window is a decision, not a failure - showing an
-      // error screen for it would tell the member something went wrong when nothing did.
-      if (!isUserCancelledAuthFlow(error)) {
-        console.error("Extension task failed", error);
-        paymentErrorKind = toPaymentErrorKind(error);
+      // Backing out of a sign-in window is a decision, not a failure, and a browser
+      // reloading or closing the extension ends this script rather than the purchase -
+      // showing an error screen for either tells the member something went wrong when
+      // nothing did. Nothing on the card is stale either way: the card keeps the last
+      // state it was painted with.
+      if (isUserCancelledAuthFlow(error) || isBrowserTeardown(error)) {
+        return;
       }
+
+      console.error("Extension task failed", error);
+      paymentErrorKind = toPaymentErrorKind(error);
     } finally {
       isBusy = false;
     }

@@ -177,6 +177,7 @@ Both tours share payment vocabulary through `packages/shared/src/payment.ts`; ne
 | PayPal refuses to create the order | The refusal is named, and only the ones retrying can fix keep offering the button |
 | Firebase id token will not mint | Read as a network failure; the card keeps the session it already had |
 | `chrome.storage` rejects | The thrown error names the operation and key, with the native message as its cause |
+| Extension is reloaded, updated, or the browser closes | The orphaned content script paints nothing: a teardown is a browser lifecycle event, not a refused payment |
 | CSUI or browser restarts | WXT local storage keeps the checkout ID for a later status refresh |
 | User switches accounts during checkout | Account-scoped storage hides the other account's checkout |
 | One account is removed | Only that named Firebase session and purchase record are cleared |
