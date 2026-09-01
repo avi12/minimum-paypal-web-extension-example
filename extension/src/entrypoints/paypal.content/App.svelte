@@ -23,6 +23,7 @@
   let extensionState = $state<ExtensionState>(EMPTY_STATE);
   let paymentErrorKind = $state<PaymentErrorKind | null>(null);
   let isBusy = $state(true);
+  let isExtensionTornDown = $state(false);
   const isPurchaseActive = $derived(
     extensionState.purchase?.status === PaymentStatus.Created
   );
@@ -33,12 +34,18 @@
     try {
       extensionState = await task();
     } catch (error) {
-      // Backing out of a sign-in window is a decision, not a failure, and a browser
-      // reloading or closing the extension ends this script rather than the purchase -
-      // showing an error screen for either tells the member something went wrong when
-      // nothing did. Nothing on the card is stale either way: the card keeps the last
-      // state it was painted with.
-      if (isUserCancelledAuthFlow(error) || isBrowserTeardown(error)) {
+      // A browser reloading or closing the extension ends this script rather than the
+      // purchase, and it never comes back for this page: every later call throws the
+      // same way. Remembering that is what stops the status poll below from asking a
+      // worker that is gone every four seconds for as long as the tab stays open.
+      if (isBrowserTeardown(error)) {
+        isExtensionTornDown = true;
+        return;
+      }
+
+      // Backing out of a sign-in window is a decision, not a failure - showing an
+      // error screen for it would tell the member something went wrong when nothing did.
+      if (isUserCancelledAuthFlow(error)) {
         return;
       }
 
@@ -75,7 +82,7 @@
   });
 
   $effect(() => {
-    if (!isPurchaseActive) {
+    if (!isPurchaseActive || isExtensionTornDown) {
       return;
     }
     let isCancelled = false;
